@@ -1,0 +1,88 @@
+name: OpenLiberty Artifactory Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_version:
+        description: 'Open Liberty version (e.g., 25.0.0.3)'
+        required: false
+        default: '25.0.0.3'
+      image_type:
+        description: 'Image type (full-java8-openj9-ubi or full-java17-openj9-ubi)'
+        required: false
+        default: 'full-java8-openj9-ubi'
+      action:
+        description: 'Action: download or sync'
+        required: false
+        default: 'download'
+  schedule:
+    - cron: '0 0 */15 * *' # Every 15 days
+
+env:
+  DOCKERHUB_REPO: openliberty/open-liberty
+  ARTIFACTORY_REGISTRY: ${{ secrets.ARTIFACTORY_REGISTRY }}
+  ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+  ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
+jobs:
+  sync-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up variables
+        id: vars
+        run: |
+          VERSION="${{ github.event.inputs.image_version || '25.0.0.3' }}"
+          TYPE="${{ github.event.inputs.image_type || 'full-java8-openj9-ubi' }}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TYPE=$TYPE" >> $GITHUB_ENV
+          echo "ARTI_TAG=${VERSION}_${TYPE}" >> $GITHUB_ENV
+          echo "ACTION=${{ github.event.inputs.action || 'download' }}" >> $GITHUB_ENV
+
+      - name: Log in to JFrog Artifactory
+        run: echo "${{ env.ARTIFACTORY_PASSWORD }}" | docker login $ARTIFACTORY_REGISTRY --username $ARTIFACTORY_USERNAME --password-stdin
+
+      - name: Pull image from Docker Hub
+        run: |
+          docker pull $DOCKERHUB_REPO:${VERSION}-${TYPE}
+
+      # Optional: Signature verification if Open Liberty signs images and you want to verify
+      # - name: Verify image signature (if signed and you want to check)
+      #   run: |
+      #     cosign verify $DOCKERHUB_REPO:${VERSION}-${TYPE} || exit 1
+      #   env:
+      #     COSIGN_EXPERIMENTAL: "1"
+
+      - name: Tag image for Artifactory
+        run: |
+          docker tag $DOCKERHUB_REPO:${VERSION}-${TYPE} $ARTIFACTORY_REGISTRY/open-liberty:${ARTI_TAG}
+
+      - name: Push image to JFrog Artifactory
+        run: |
+          docker push $ARTIFACTORY_REGISTRY/open-liberty:${ARTI_TAG}
+
+      - name: Check for newer versions (scheduled only)
+        if: github.event_name == 'schedule' || env.ACTION == 'sync'
+        run: |
+          # Get latest version from Docker Hub tags for this image type
+          LATEST=$(curl -s "https://registry.hub.docker.com/v2/repositories/openliberty/open-liberty/tags?page_size=100" | jq -r '.results[].name' | grep "$TYPE" | sort -V | tail -1 | cut -d'-' -f1)
+          if [ "$LATEST" != "$VERSION" ]; then
+            echo "New version available: $LATEST"
+            docker pull $DOCKERHUB_REPO:${LATEST}-${TYPE}
+            # Uncomment if signature verification is desired and supported
+            # cosign verify $DOCKERHUB_REPO:${LATEST}-${TYPE} || exit 1
+            docker tag $DOCKERHUB_REPO:${LATEST}-${TYPE} $ARTIFACTORY_REGISTRY/open-liberty:${LATEST}_${TYPE}
+            docker push $ARTIFACTORY_REGISTRY/open-liberty:${LATEST}_${TYPE}
+          else
+            echo "No new version found."
+          fi
+
+  developer-download:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'download'
+    steps:
+      - name: Log in to JFrog Artifactory
+        run: echo "${{ env.ARTIFACTORY_PASSWORD }}" | docker login $ARTIFACTORY_REGISTRY --username $ARTIFACTORY_USERNAME --password-stdin
+
+      - name: Pull desired image from JFrog
+        run: |
+          docker pull $ARTIFACTORY_REGISTRY/open-liberty:${{ env.ARTI_TAG }}

@@ -25,8 +25,8 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Log in to Open Liberty Registry
-        run: echo "${{ secrets.IBM_CLOUD_API_KEY }}" | docker login icr.io -u iamapikey --password-stdin
+      #- name: Log in to Open Liberty Registry
+       # run: echo "${{ secrets.IBM_CLOUD_API_KEY }}" | docker login icr.io -u iamapikey --password-stdin
 
       - name: Pull Open Liberty Images (excluding beta versions)
         run: |

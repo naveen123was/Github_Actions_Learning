@@ -35,7 +35,7 @@ jobs:
           TYPE="${{ github.event.inputs.image_type || 'full-java8-openj9-ubi' }}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "TYPE=$TYPE" >> $GITHUB_ENV
-          echo "ARTI_TAG=${VERSION}_${TYPE}" >> $GITHUB_ENV
+          echo "ARTI_TAG=${VERSION}-${TYPE}" >> $GITHUB_ENV
           echo "ACTION=${{ github.event.inputs.action || 'download' }}" >> $GITHUB_ENV
 
       - name: Log in to JFrog Artifactory
@@ -70,8 +70,8 @@ jobs:
             docker pull $DOCKERHUB_REPO:${LATEST}-${TYPE}
             # Uncomment if signature verification is desired and supported
             # cosign verify $DOCKERHUB_REPO:${LATEST}-${TYPE} || exit 1
-            docker tag $DOCKERHUB_REPO:${LATEST}-${TYPE} $ARTIFACTORY_REGISTRY/open-liberty:${LATEST}_${TYPE}
-            docker push $ARTIFACTORY_REGISTRY/open-liberty:${LATEST}_${TYPE}
+            docker tag $DOCKERHUB_REPO:${LATEST}-${TYPE} $ARTIFACTORY_REGISTRY/open-liberty:${LATEST}-${TYPE}
+            docker push $ARTIFACTORY_REGISTRY/open-liberty:${LATEST}-${TYPE}
           else
             echo "No new version found."
           fi

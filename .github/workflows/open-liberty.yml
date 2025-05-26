@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Log in to Open Liberty Registry
-        run: docker login icr.io -u ${{ secrets.REGISTRY_USER }} -p ${{ secrets.REGISTRY_PASS }}
+        run: echo "${{ secrets.IBM_CLOUD_API_KEY }}" | docker login icr.io -u iamapikey --password-stdin
 
       - name: Pull Open Liberty Images (excluding beta versions)
         run: |
